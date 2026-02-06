@@ -1,73 +1,159 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ランダム数字読み上げ</title>
+<meta charset="UTF-8" />
+<title>慣用句学習アプリ</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; font-size: 1.3em; }
+  #controls { margin-bottom: 20px; text-align: center; }
+  button { margin: 5px; font-size: 1.3em; padding: 10px 14px; }
+
+  .phrase { 
+    border: 2px solid #444; 
+    padding: 20px; 
+    margin: 10px auto; 
+    width: 50%; 
+    font-size: 1.3em; 
+    cursor: pointer; 
+    display: block; 
+    text-align: left;
+  }
+
+  .front { font-weight: bold; }
+  .back { margin-left: 5px; font-weight: bold; text-transform: uppercase; }
+</style>
 </head>
 <body>
-  <h2>ランダム数字生成 & 読み上げ</h2>
 
-  <label>
-    桁数：
-    <input type="number" id="digit" min="1" value="6">
-  </label>
+<h1 style="text-align:center;">慣用句学習アプリ</h1>
 
-  <br><br>
+<div id="controls">
+  <label><input type="checkbox" id="toggleFront"> 前半を隠す</label>
+  <label><input type="checkbox" id="randomOrder"> ランダム出題</label>
+  <label><input type="checkbox" id="weakMode"> 苦手問題優先</label>
+</div>
 
-  <label>
-    <input type="checkbox" id="reverse" checked>
-    表示を後ろから読む
-  </label>
+<div id="questions"></div>
 
-  <br><br>
+<div style="text-align:center;">
+  <button id="showAnswerBtn">答えを見る</button>
+  <button id="nextBtn">次の5問</button>
+</div>
 
-  <button onclick="generateNumber()">生成して読み上げ</button>
+<script>
+// 小学二年生以下向けの慣用句20問
+const phrases = [
+  ["猫に", "小判"],
+  ["二兎をおう者は", "一兎をも得ず"],
+  ["逃がした魚は", "大きい"],
+  ["灯台もと", "暗し"],
+  ["善は", "急げ"],
+  ["石橋を", "たたいて渡る"],
+  ["三度目の", "正直"],
+  ["七転び", "八起き"],
+  ["急がば", "回れ"],
+  ["論より", "証拠"],
+  ["類は友を呼ぶ", ""],
+  ["良薬は", "口ににがし"],
+  ["立て板に", "水"],
+  ["餅は", "餅屋"],
+  ["壁に", "耳あり"],
+  ["百聞は", "一見にしかず"],
+  ["備えあれば", "憂いなし"],
+  ["飛ぶ鳥", "後をにごさず"],
+  ["背に腹は", "替えられぬ"],
+  ["馬の耳に", "念仏"],
+];
 
-  <h3>表示結果</h3>
-  <div id="result" style="font-size: 24px;"></div>
+const questionsDiv = document.getElementById("questions");
+const showAnswerBtn = document.getElementById("showAnswerBtn");
+const nextBtn = document.getElementById("nextBtn");
+const toggleFront = document.getElementById("toggleFront");
+const randomOrderCheckbox = document.getElementById("randomOrder");
+const weakModeCheckbox = document.getElementById("weakMode");
 
-  <script>
-    function generateNumber() {
-      const digit = document.getElementById("digit").value;
-      const reverseDisplay = document.getElementById("reverse").checked;
+const questionsPerPage = 5;
+let currentOrder = [];
+let currentIndex = 0;
+let mistakeCounts = {};
 
-      let number = "";
-      let prev = null;
+function prepareQuestionOrder(){
+  if(weakModeCheckbox.checked){
+    let totalWrongList = phrases.map((_,idx)=>({idx, total: mistakeCounts[idx] || 0}));
+    totalWrongList.sort((a,b)=>b.total - a.total);
+    currentOrder = totalWrongList.map(o=>o.idx);
+  } else {
+    currentOrder = phrases.map((_,i)=>i);
+    if(randomOrderCheckbox.checked) currentOrder.sort(()=>Math.random()-0.5);
+  }
+}
 
-      for (let i = 0; i < digit; i++) {
-        let n;
-        do {
-          n = Math.floor(Math.random() * 10);
-        } while (n === prev); // 直前と同じならやり直し
+function updateFrontVisibility(){
+  const hideFront = toggleFront.checked;
+  document.querySelectorAll(".phrase").forEach(div=>{
+    const frontSpan = div.querySelector(".front");
+    frontSpan.style.visibility = hideFront ? "hidden" : "visible";
+    if(div.dataset.state==="hidden") div.querySelector(".back").style.visibility = hideFront ? "visible" : "hidden";
+  });
+}
 
-        number += n;
-        prev = n;
+function displayQuestions(){
+  prepareQuestionOrder();
+  questionsDiv.innerHTML="";
+
+  for(let i=0; i<questionsPerPage; i++){
+    let idx = currentOrder[currentIndex+i];
+    if(idx === undefined){
+      currentIndex = 0;
+      idx = currentOrder[currentIndex+i];
+      if(idx === undefined) break;
+    }
+    const [front, back] = phrases[idx];
+    const div = document.createElement("div");
+    div.classList.add("phrase");
+    div.dataset.idx = idx;
+    div.dataset.state = "hidden";
+
+    const count = mistakeCounts[idx] || 0;
+    const countText = count > 0 ? `[${count}] ` : "";
+
+    div.innerHTML = `${countText}<span class="front">${front}</span> <span class="back">${back.toUpperCase()}</span>`;
+
+    div.querySelector(".back").style.visibility = toggleFront.checked ? "visible" : "hidden";
+
+    div.addEventListener("click", ()=>{
+      if(div.dataset.state === "hidden"){
+        div.querySelector(".back").style.visibility = "visible";
+        div.dataset.state = "shown";
+      } else if(div.dataset.state === "shown"){
+        mistakeCounts[idx] = (mistakeCounts[idx] || 0) + 1;
+        div.dataset.state = "counted";
+        div.innerHTML = `[${mistakeCounts[idx]}] <span class="front">${front}</span> <span class="back">${back.toUpperCase()}</span>`;
       }
+    });
 
-      // 表示用
-      const displayNumber = reverseDisplay
-        ? number.split("").reverse().join("")
-        : number;
+    questionsDiv.appendChild(div);
+  }
+  updateFrontVisibility();
+  showAnswerBtn.disabled = false;
+}
 
-      document.getElementById("result").textContent = displayNumber;
+showAnswerBtn.addEventListener("click", ()=>{
+  document.querySelectorAll(".phrase .back").forEach(span=>span.style.visibility="visible");
+});
 
-      // 表示結果を右から読み上げ
-      speakFromRight(displayNumber);
-    }
+nextBtn.addEventListener("click", ()=>{
+  currentIndex += questionsPerPage;
+  if(currentIndex >= phrases.length) currentIndex = 0;
+  displayQuestions();
+});
 
-    function speakFromRight(displayNumber) {
-      speechSynthesis.cancel();
+toggleFront.addEventListener("change", updateFrontVisibility);
+randomOrderCheckbox.addEventListener("change", ()=>{ currentIndex=0; displayQuestions(); });
+weakModeCheckbox.addEventListener("change", ()=>{ currentIndex=0; displayQuestions(); });
 
-      const chars = displayNumber.split("").reverse();
-      const map = ["ゼロ","いち","に","さん","よん","ご","ろく","なな","はち","きゅう"];
-      const text = chars.map(n => map[n]).join(" ");
+displayQuestions();
+</script>
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ja-JP";
-      utterance.rate = 1.0;
-
-      speechSynthesis.speak(utterance);
-    }
-  </script>
 </body>
 </html>
